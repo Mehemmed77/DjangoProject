@@ -1,5 +1,7 @@
+from typing import Any
+from django.db.models.query import QuerySet
 from django.shortcuts import render,redirect
-from django.http import HttpResponse
+from django.http import HttpRequest, HttpResponse
 from django.db.models import Q
 from .models import Room,Topic, Message
 from .forms import RoomForm
@@ -9,6 +11,14 @@ from django.contrib.auth.models import User
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib import messages
 from datetime import datetime,timedelta
+from django.contrib.auth.views import LogoutView
+from django.views.generic import TemplateView
+from django.views.generic.list import ListView
+
+class MyLogoutView(TemplateView):
+    def get(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
+        logout(request)
+        return redirect("login")
 
 def logout_view(request):
     logout(request)
@@ -55,6 +65,43 @@ def register_view(request):
 
     context = {'form':form}
     return render(request,"login_register.html",context)
+
+
+class Myindex(ListView):
+    template_name = "index.html"
+    model = Topic
+    context_object_name = "topics"
+    
+    def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
+        context = super().get_context_data(**kwargs)
+
+        print(context.keys())
+
+        q = self.request.GET.get('q') if self.request.GET.get('q') != None else ''
+
+        topic = self.request.GET.get('topic') if self.request.GET.get('topic') != None else ''
+
+        if topic:
+            room_list = Room.objects.filter(topic__name = topic)
+    
+        else:
+            room_list = Room.objects.filter(
+                Q(topic__name__icontains = q) |
+                Q(name__icontains = q) |
+                Q(description__icontains = q)
+            )
+
+        # now = datetime.utcnow()
+        # delta = now - timedelta(hours = 1)
+        recent_messages = Message.objects.all()
+        # topics = Topic.objects.all()
+
+        room_count = Room.objects.count()
+        context['rooms'] = room_list
+        context['recent_messages'] = recent_messages
+        context['room_count'] = room_count
+
+        return context
 
 def index(request):
     q = request.GET.get('q') if request.GET.get('q') != None else ''
